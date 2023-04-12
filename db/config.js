@@ -1,2 +1,4 @@
 const mongoose=require('mongoose');
-mongoose.connect("mongodb://localhost:27017/students")
+const dotenv=require('dotenv');
+dotenv.config()
+const MONGO_URL=process.env.MONGO_URL 
