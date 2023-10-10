@@ -1,5 +1,6 @@
 const express = require("express");
-
+const bcrypt = require('bcrypt');
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 const Student = require("../modals/stud");
 const User = require("../modals/user");
@@ -23,29 +24,31 @@ const User = require("../modals/user");
 //     }
 //   });
 
-  router.post("/register", async (request, response) => {
-    let user=new User(request.body);
-    let result = await user.save();
-    result=result.toObject();
-    delete result.password;
-    response.status(200).send(result);
-  })
+//   router.post("/register", async (request, response) => {
+//     let user=new User(request.body);
+//     let result = await user.save();
+//     result=result.toObject();
+//     delete result.password;
+//     response.status(200).send(result);
+//   })
 
-router.post("/login",async (request, response) => {
-  if(request.body.password && request.body.email){
-    let user=await User.findOne( request.body).select("-password")
-    if(user){
-      response.send(user)
-    }
-    else{
-      response.send({message:"no user found"})
-    }
-  }
-  else{
-    response.send({message:"no user found"})
-  }
-  }
-)
+// router.post("/login",async (request, response) => {
+//   if(request.body.password && request.body.email){
+//     let user=await User.findOne( request.body).select("-password")
+//     if(user){
+//       response.send(user)
+//     }
+//     else{
+//       response.send({message:"no user found"})
+//     }
+//   }
+//   else{
+//     response.send({message:"no user found"})
+//   }
+//   }
+// )
+
+
   
 router.get("/getallusers", async (request, response) => {
   try {
@@ -106,3 +109,47 @@ router.put("/update-user/:id", async function (request, response) {
 
 module.exports = router;
 
+
+router.post("/newregister",async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    const oldUser= await User.findOne({email})
+    if(oldUser){
+      return  res.send({message:"User already exists"})
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ name, email, password: hashedPassword });
+    const result = await newUser.save();
+    const token = jwt.sign({ userId: result._id }, process.env.JWT_SECRET);
+    const userData = { _id: result._id, name: result.name, email: result.email};
+    res.header('x-auth-token', token).send(userData);
+  } catch (error) {
+    console.error(error);
+    res.status(400).send({ message: 'Registration failed' });
+  }
+  
+})
+
+
+
+router.post("/newlogin",async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await User.findOne({email});
+    if (!user) {
+      return res.status(401).send({ message: 'Invalid email or password' });
+    }
+    const passwordMatches = await bcrypt.compare(password, user.password);
+    if (!passwordMatches) {
+      return res.status(401).send({ message: 'Invalid email or password' });
+    }
+    const token = user.generateAuthToken(); // create a JWT token for the user
+    const userData = { _id: user._id, name: user.name, email: user.email };
+    res.header('x-auth-token', token).send(userData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: 'Server error' });
+  }
+  
+
+})
